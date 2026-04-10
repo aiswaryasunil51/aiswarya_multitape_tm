@@ -1,0 +1,1487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Multi-Tape Turing Machine Visualizer</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #111118;
+    --surface2: #1a1a24;
+    --surface3: #22222f;
+    --border: #2a2a3a;
+    --border2: #3a3a50;
+    --text: #e8e8f0;
+    --text2: #9090a8;
+    --text3: #5a5a72;
+    --accent: #7c6aff;
+    --accent2: #a594ff;
+    --teal: #2dd4bf;
+    --amber: #f59e0b;
+    --coral: #f87171;
+    --green: #4ade80;
+    --pink: #f472b6;
+    --tape1: #7c6aff;
+    --tape2: #2dd4bf;
+    --tape3: #f59e0b;
+    --head-glow: rgba(124,106,255,0.4);
+    --mono: 'JetBrains Mono', monospace;
+    --display: 'Syne', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ─── GRID BACKGROUND ─── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(var(--border) 1px, transparent 1px),
+      linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 40px 40px;
+    opacity: 0.3;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ─── HEADER ─── */
+  header {
+    position: relative;
+    z-index: 10;
+    padding: 28px 40px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    background: rgba(10,10,15,0.85);
+    backdrop-filter: blur(8px);
+  }
+
+  .logo-block { display: flex; align-items: center; gap: 16px; }
+
+  .logo-icon {
+    width: 44px; height: 44px;
+    background: var(--accent);
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--display);
+    font-weight: 800;
+    font-size: 20px;
+    color: #fff;
+    flex-shrink: 0;
+  }
+
+  h1 {
+    font-family: var(--display);
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+    line-height: 1.2;
+  }
+
+  .subtitle {
+    font-size: 11px;
+    color: var(--text3);
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    margin-top: 3px;
+  }
+
+  .badges { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+  .badge {
+    font-size: 10px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    border: 1px solid;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+  .badge.purple { border-color: var(--accent); color: var(--accent); }
+  .badge.teal   { border-color: var(--teal);   color: var(--teal);   }
+  .badge.amber  { border-color: var(--amber);  color: var(--amber);  }
+
+  /* ─── MAIN LAYOUT ─── */
+  .main {
+    position: relative;
+    z-index: 5;
+    display: grid;
+    grid-template-columns: 280px 1fr 260px;
+    grid-template-rows: auto 1fr;
+    gap: 0;
+    height: calc(100vh - 88px);
+    overflow: hidden;
+  }
+
+  /* ─── PANELS ─── */
+  .panel {
+    border-right: 1px solid var(--border);
+    background: rgba(17,17,24,0.7);
+    backdrop-filter: blur(6px);
+    overflow-y: auto;
+  }
+
+  .panel:last-child { border-right: none; border-left: 1px solid var(--border); }
+
+  .panel-header {
+    padding: 16px 20px 12px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    position: sticky;
+    top: 0;
+    background: rgba(17,17,24,0.95);
+    z-index: 2;
+  }
+
+  .panel-title {
+    font-family: var(--display);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    color: var(--text);
+  }
+
+  .panel-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .panel-body { padding: 16px 20px; }
+
+  /* ─── CENTER STAGE ─── */
+  .stage {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--bg);
+  }
+
+  /* ─── THEORY SECTION ─── */
+  .theory-strip {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 32px;
+    display: flex;
+    gap: 32px;
+    align-items: center;
+    overflow-x: auto;
+    flex-shrink: 0;
+  }
+
+  .theory-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    min-width: 140px;
+    flex-shrink: 0;
+  }
+
+  .theory-num {
+    font-family: var(--display);
+    font-size: 28px;
+    font-weight: 800;
+    line-height: 1;
+    color: var(--accent);
+    opacity: 0.5;
+  }
+
+  .theory-text-block {}
+  .theory-label {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--text3);
+    margin-bottom: 2px;
+  }
+  .theory-text { font-size: 11px; color: var(--text2); line-height: 1.5; max-width: 160px; }
+
+  .theory-sep { width: 1px; height: 40px; background: var(--border); flex-shrink: 0; }
+
+  /* ─── TAPE AREA ─── */
+  .tape-area {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+  }
+
+  .tape-wrapper { position: relative; }
+
+  .tape-label-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+
+  .tape-name {
+    font-family: var(--display);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  .tape-role {
+    font-size: 10px;
+    color: var(--text3);
+    letter-spacing: 0.5px;
+  }
+
+  .tape-container {
+    position: relative;
+    display: flex;
+    align-items: stretch;
+    overflow: hidden;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+  }
+
+  .tape-track {
+    display: flex;
+    align-items: stretch;
+    transition: transform 0.35s cubic-bezier(0.4,0,0.2,1);
+    flex: 1;
+    overflow: hidden;
+  }
+
+  .tape-cell {
+    min-width: 52px;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    font-weight: 700;
+    font-family: var(--mono);
+    border-right: 1px solid var(--border);
+    position: relative;
+    flex-shrink: 0;
+    transition: background 0.25s, color 0.25s;
+    color: var(--text);
+    background: var(--surface);
+    user-select: none;
+  }
+
+  .tape-cell.blank { color: var(--text3); }
+  .tape-cell.current { background: var(--surface3); }
+  .tape-cell.written {
+    background: rgba(124,106,255,0.08);
+    color: var(--accent2);
+  }
+  .tape-cell:last-child { border-right: none; }
+
+  .cell-index {
+    position: absolute;
+    bottom: 4px;
+    font-size: 8px;
+    color: var(--text3);
+    letter-spacing: 0.5px;
+  }
+
+  /* Head indicator */
+  .head-indicator {
+    position: absolute;
+    top: -16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    pointer-events: none;
+    transition: left 0.35s cubic-bezier(0.4,0,0.2,1);
+    z-index: 5;
+  }
+
+  .head-arrow {
+    font-size: 16px;
+    animation: headBob 1.5s ease-in-out infinite;
+  }
+
+  @keyframes headBob {
+    0%,100% { transform: translateY(0); }
+    50% { transform: translateY(3px); }
+  }
+
+  .head-label {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-top: 2px;
+  }
+
+  /* Scanner glow on current cell */
+  .tape-cell.head-cell {
+    box-shadow: inset 0 0 0 2px var(--head-color, var(--accent));
+  }
+
+  /* ─── CONTROLS ─── */
+  .controls-bar {
+    padding: 16px 32px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--surface);
+    flex-shrink: 0;
+    flex-wrap: wrap;
+  }
+
+  .btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border-radius: 6px;
+    border: 1px solid var(--border2);
+    background: var(--surface2);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: 0.3px;
+  }
+
+  .btn:hover { background: var(--surface3); border-color: var(--accent); color: var(--accent); }
+  .btn:active { transform: scale(0.97); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.primary:hover { background: var(--accent2); }
+  .btn.danger { border-color: var(--coral); color: var(--coral); }
+  .btn.danger:hover { background: rgba(248,113,113,0.1); }
+  .btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+
+  .speed-control {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+  }
+
+  .speed-label { font-size: 10px; color: var(--text3); letter-spacing: 1px; text-transform: uppercase; }
+
+  input[type=range] {
+    -webkit-appearance: none;
+    width: 90px;
+    height: 3px;
+    background: var(--border2);
+    border-radius: 2px;
+    outline: none;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+  }
+
+  /* ─── STATE DISPLAY ─── */
+  .state-display {
+    padding: 12px 20px 0;
+  }
+
+  .state-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    border-radius: 20px;
+    border: 1px solid var(--border2);
+    font-size: 13px;
+    font-weight: 600;
+    background: var(--surface2);
+    margin-bottom: 12px;
+    transition: all 0.3s;
+  }
+
+  .state-chip.accepting {
+    border-color: var(--green);
+    color: var(--green);
+    background: rgba(74,222,128,0.08);
+  }
+
+  .state-chip.rejecting {
+    border-color: var(--coral);
+    color: var(--coral);
+    background: rgba(248,113,113,0.08);
+  }
+
+  .state-chip.running {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(124,106,255,0.08);
+  }
+
+  .state-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+
+  /* ─── TRANSITION TABLE ─── */
+  .transition-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 10px;
+  }
+
+  .transition-table th {
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-size: 9px;
+    color: var(--text3);
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+    font-weight: 500;
+  }
+
+  .transition-table td {
+    padding: 5px 8px;
+    border-bottom: 1px solid rgba(42,42,58,0.5);
+    font-size: 10px;
+    color: var(--text2);
+    white-space: nowrap;
+    font-family: var(--mono);
+  }
+
+  .transition-table tr.active td {
+    background: rgba(124,106,255,0.12);
+    color: var(--text);
+  }
+  .transition-table tr.active td:first-child {
+    border-left: 2px solid var(--accent);
+  }
+
+  .state-tag {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 9px;
+    font-weight: 700;
+    font-family: var(--mono);
+    letter-spacing: 0.5px;
+  }
+
+  /* ─── INPUT SECTION ─── */
+  .input-section { padding: 16px 20px; border-bottom: 1px solid var(--border); }
+
+  .input-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    color: var(--text3);
+    margin-bottom: 6px;
+  }
+
+  .input-field {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 12px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .input-field:focus { border-color: var(--accent); }
+
+  /* ─── PRESET BUTTONS ─── */
+  .preset-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    margin-top: 12px;
+  }
+
+  .preset-btn {
+    padding: 7px 10px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    color: var(--text2);
+    font-size: 10px;
+    font-family: var(--mono);
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.15s;
+    line-height: 1.4;
+  }
+
+  .preset-btn:hover { border-color: var(--accent); color: var(--text); background: var(--surface3); }
+  .preset-btn .preset-name { font-weight: 600; font-size: 11px; color: var(--text); }
+  .preset-btn .preset-desc { font-size: 9px; color: var(--text3); margin-top: 1px; }
+
+  /* ─── LOG ─── */
+  .log-area {
+    padding: 12px 20px;
+    height: 180px;
+    overflow-y: auto;
+    background: var(--bg);
+    font-size: 10px;
+    line-height: 1.8;
+    color: var(--text3);
+  }
+
+  .log-entry { display: flex; gap: 8px; }
+  .log-step { color: var(--text3); min-width: 30px; }
+  .log-state { color: var(--accent); }
+  .log-arrow { color: var(--text3); }
+  .log-action { color: var(--text2); }
+  .log-accept { color: var(--green); font-weight: 600; }
+  .log-reject { color: var(--coral); font-weight: 600; }
+
+  /* ─── STATE GRAPH ─── */
+  .state-graph {
+    padding: 16px 20px;
+  }
+
+  .graph-svg { width: 100%; }
+
+  /* ─── SCROLLBAR STYLE ─── */
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text3); }
+
+  /* ─── STATUS BAR ─── */
+  .status-bar {
+    grid-column: 1 / -1;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    padding: 6px 32px;
+    display: flex;
+    gap: 24px;
+    font-size: 10px;
+    color: var(--text3);
+    align-items: center;
+    letter-spacing: 0.5px;
+  }
+
+  .status-item { display: flex; gap: 6px; align-items: center; }
+  .status-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--green); }
+
+  /* ─── RESULT BANNER ─── */
+  .result-banner {
+    display: none;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%,-50%);
+    padding: 20px 40px;
+    border-radius: 12px;
+    font-family: var(--display);
+    font-size: 28px;
+    font-weight: 800;
+    text-align: center;
+    z-index: 100;
+    animation: bannerPop 0.4s cubic-bezier(0.34,1.56,0.64,1);
+    backdrop-filter: blur(10px);
+    border: 2px solid;
+  }
+
+  @keyframes bannerPop {
+    from { transform: translate(-50%,-50%) scale(0.7); opacity: 0; }
+    to   { transform: translate(-50%,-50%) scale(1);   opacity: 1; }
+  }
+
+  .result-banner.accept {
+    background: rgba(74,222,128,0.12);
+    border-color: var(--green);
+    color: var(--green);
+  }
+
+  .result-banner.reject {
+    background: rgba(248,113,113,0.12);
+    border-color: var(--coral);
+    color: var(--coral);
+  }
+
+  .result-sub {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 400;
+    color: var(--text2);
+    margin-top: 6px;
+    letter-spacing: 0.5px;
+  }
+
+  /* ─── MOBILE NOTICE ─── */
+  @media (max-width: 768px) {
+    .main { grid-template-columns: 1fr; grid-template-rows: auto; height: auto; overflow: visible; }
+    .panel { border-right: none; border-bottom: 1px solid var(--border); }
+    .panel:last-child { border-left: none; }
+    header { flex-direction: column; gap: 12px; }
+  }
+
+  /* ─── SECTION DIVIDER ─── */
+  .section-divider {
+    padding: 10px 20px;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--text3);
+    border-bottom: 1px solid var(--border);
+    background: var(--bg);
+  }
+
+  /* Tape color variants */
+  .tape-wrapper:nth-child(1) { --head-color: var(--tape1); }
+  .tape-wrapper:nth-child(2) { --head-color: var(--tape2); }
+  .tape-wrapper:nth-child(3) { --head-color: var(--tape3); }
+
+  .t1 { color: var(--tape1); }
+  .t2 { color: var(--tape2); }
+  .t3 { color: var(--tape3); }
+
+  /* Comparison section */
+  .compare-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    padding: 14px 20px;
+  }
+
+  .compare-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+  }
+
+  .compare-card-title {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  .compare-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    color: var(--text2);
+    padding: 2px 0;
+  }
+
+  .compare-value { color: var(--text); font-weight: 600; }
+
+  /* Highlight active transition */
+  @keyframes pulse-border {
+    0%,100% { box-shadow: 0 0 0 0 rgba(124,106,255,0.4); }
+    50%      { box-shadow: 0 0 0 4px rgba(124,106,255,0); }
+  }
+</style>
+</head>
+<body>
+
+<!-- ─── HEADER ─── -->
+<header>
+  <div class="logo-block">
+    <div class="logo-icon">TM</div>
+    <div>
+      <h1>Multi-Tape Turing Machine</h1>
+      <div class="subtitle">Advanced Computational Model Visualizer</div>
+    </div>
+  </div>
+  <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px">
+    <div class="badges">
+      <span class="badge purple">3 Tapes</span>
+      <span class="badge teal">Multi-Head</span>
+      <span class="badge amber">Step-by-Step</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;background:rgba(124,106,255,0.08);border:1px solid rgba(124,106,255,0.25);border-radius:8px;padding:6px 14px">
+      <div style="width:30px;height:30px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-family:var(--display);font-weight:800;font-size:12px;color:#fff;flex-shrink:0">AS</div>
+      <div>
+        <div style="font-family:var(--display);font-size:13px;font-weight:600;color:var(--text);letter-spacing:0.2px">Aiswarya Sunil</div>
+        <div style="font-size:9px;color:var(--accent);letter-spacing:1.5px;text-transform:uppercase;margin-top:1px">2024UCS1630</div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ─── MAIN LAYOUT ─── -->
+<div class="main">
+
+  <!-- ─── LEFT PANEL: Config ─── -->
+  <div class="panel">
+    <div class="panel-header">
+      <div class="panel-dot" style="background:var(--accent)"></div>
+      <span class="panel-title">Configuration</span>
+    </div>
+
+    <div class="input-section">
+      <div class="input-label">Input String (Tape 1)</div>
+      <input type="text" class="input-field" id="inputStr" value="aabb" placeholder="e.g. aabb" maxlength="20">
+    </div>
+
+    <div class="section-divider">Preset Machines</div>
+    <div class="panel-body">
+      <div class="preset-grid">
+        <button class="preset-btn" onclick="loadPreset('palindrome')">
+          <div class="preset-name">Palindrome</div>
+          <div class="preset-desc">2-tape check</div>
+        </button>
+        <button class="preset-btn" onclick="loadPreset('anbn')">
+          <div class="preset-name">aⁿbⁿ</div>
+          <div class="preset-desc">3-tape counter</div>
+        </button>
+        <button class="preset-btn" onclick="loadPreset('copy')">
+          <div class="preset-name">Copy</div>
+          <div class="preset-desc">Tape 1→2</div>
+        </button>
+        <button class="preset-btn" onclick="loadPreset('reverse')">
+          <div class="preset-name">Reverse</div>
+          <div class="preset-desc">Invert string</div>
+        </button>
+        <button class="preset-btn" onclick="loadPreset('unary_add')">
+          <div class="preset-name">Unary +</div>
+          <div class="preset-desc">Addition</div>
+        </button>
+        <button class="preset-btn" onclick="loadPreset('equal_ab')">
+          <div class="preset-name">#a = #b</div>
+          <div class="preset-desc">Count match</div>
+        </button>
+      </div>
+    </div>
+
+    <div class="section-divider">Efficiency Comparison</div>
+    <div class="compare-grid">
+      <div class="compare-card">
+        <div class="compare-card-title t1">Multi-Tape</div>
+        <div class="compare-row"><span>Tapes</span><span class="compare-value" id="cmp-tapes">3</span></div>
+        <div class="compare-row"><span>Steps</span><span class="compare-value t1" id="cmp-steps">—</span></div>
+        <div class="compare-row"><span>Complexity</span><span class="compare-value">O(n)</span></div>
+      </div>
+      <div class="compare-card">
+        <div class="compare-card-title" style="color:var(--text3)">Single-Tape</div>
+        <div class="compare-row"><span>Tapes</span><span class="compare-value">1</span></div>
+        <div class="compare-row"><span>Steps (est.)</span><span class="compare-value" id="cmp-single">—</span></div>
+        <div class="compare-row"><span>Complexity</span><span class="compare-value" style="color:var(--amber)">O(n²)</span></div>
+      </div>
+    </div>
+
+    <div class="section-divider">Active State</div>
+    <div class="state-display">
+      <div class="state-chip running" id="stateChip">
+        <div class="state-dot"></div>
+        <span id="stateLabel">q0</span>
+      </div>
+      <div style="font-size:10px;color:var(--text3);line-height:1.7">
+        <div>Step: <span id="stepCount" style="color:var(--text)">0</span></div>
+        <div>Tape 1 head: <span class="t1" id="h1pos">0</span></div>
+        <div>Tape 2 head: <span class="t2" id="h2pos">0</span></div>
+        <div>Tape 3 head: <span class="t3" id="h3pos">0</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── CENTER: Tapes + Controls ─── -->
+  <div class="stage">
+    <!-- Theory Strip -->
+    <div class="theory-strip">
+      <div class="theory-item">
+        <div class="theory-num">01</div>
+        <div class="theory-text-block">
+          <div class="theory-label">Definition</div>
+          <div class="theory-text">A k-tape TM uses k independent infinite tapes, each with its own R/W head.</div>
+        </div>
+      </div>
+      <div class="theory-sep"></div>
+      <div class="theory-item">
+        <div class="theory-num">02</div>
+        <div class="theory-text-block">
+          <div class="theory-label">Equivalence</div>
+          <div class="theory-text">Every multi-tape TM can be simulated by a single-tape TM — but with O(n²) overhead.</div>
+        </div>
+      </div>
+      <div class="theory-sep"></div>
+      <div class="theory-item">
+        <div class="theory-num">03</div>
+        <div class="theory-text-block">
+          <div class="theory-label">Transition</div>
+          <div class="theory-text">δ(q, a₁…aₖ) → (q', b₁…bₖ, D₁…Dₖ) reads & writes all heads simultaneously.</div>
+        </div>
+      </div>
+      <div class="theory-sep"></div>
+      <div class="theory-item">
+        <div class="theory-num">04</div>
+        <div class="theory-text-block">
+          <div class="theory-label">Power</div>
+          <div class="theory-text">Same computational class as single-tape, but exponentially more efficient for many problems.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tape Visualization -->
+    <div class="tape-area" id="tapeArea">
+
+      <!-- TAPE 1 -->
+      <div class="tape-wrapper">
+        <div class="tape-label-row">
+          <div class="panel-dot" style="background:var(--tape1)"></div>
+          <span class="tape-name t1">Tape 1</span>
+          <span class="tape-role">— Input / Working</span>
+        </div>
+        <div style="position:relative">
+          <div class="head-indicator" id="head1" style="left:26px">
+            <span class="head-arrow t1">▼</span>
+            <span class="head-label t1">H₁</span>
+          </div>
+          <div class="tape-container">
+            <div class="tape-track" id="tape1Track"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAPE 2 -->
+      <div class="tape-wrapper">
+        <div class="tape-label-row">
+          <div class="panel-dot" style="background:var(--tape2)"></div>
+          <span class="tape-name t2">Tape 2</span>
+          <span class="tape-role">— Auxiliary / Counter</span>
+        </div>
+        <div style="position:relative">
+          <div class="head-indicator" id="head2" style="left:26px">
+            <span class="head-arrow t2">▼</span>
+            <span class="head-label t2">H₂</span>
+          </div>
+          <div class="tape-container">
+            <div class="tape-track" id="tape2Track"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAPE 3 -->
+      <div class="tape-wrapper">
+        <div class="tape-label-row">
+          <div class="panel-dot" style="background:var(--tape3)"></div>
+          <span class="tape-name t3">Tape 3</span>
+          <span class="tape-role">— Output / Work</span>
+        </div>
+        <div style="position:relative">
+          <div class="head-indicator" id="head3" style="left:26px">
+            <span class="head-arrow t3">▼</span>
+            <span class="head-label t3">H₃</span>
+          </div>
+          <div class="tape-container">
+            <div class="tape-track" id="tape3Track"></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Controls Bar -->
+    <div class="controls-bar">
+      <button class="btn primary" id="btnStep" onclick="step()">▶ Step</button>
+      <button class="btn" id="btnRun" onclick="toggleRun()">⏵ Run</button>
+      <button class="btn" id="btnBack" onclick="stepBack()">◀ Back</button>
+      <button class="btn danger" onclick="reset()">↺ Reset</button>
+      <div class="speed-control">
+        <span class="speed-label">Speed</span>
+        <input type="range" id="speedSlider" min="50" max="900" value="400" oninput="updateSpeed()">
+        <span id="speedLabel" style="font-size:10px;color:var(--text3);min-width:40px">med</span>
+      </div>
+    </div>
+
+    <!-- Result Banner (overlay) -->
+    <div class="result-banner" id="resultBanner">
+      <div id="resultTitle">ACCEPTED</div>
+      <div class="result-sub" id="resultSub"></div>
+    </div>
+
+  </div>
+
+  <!-- ─── RIGHT PANEL: Transitions + Log ─── -->
+  <div class="panel">
+    <div class="panel-header">
+      <div class="panel-dot" style="background:var(--teal)"></div>
+      <span class="panel-title">Transition Function</span>
+    </div>
+
+    <div class="panel-body" style="padding:12px 16px">
+      <table class="transition-table" id="transTable">
+        <thead>
+          <tr>
+            <th>State</th>
+            <th>Read</th>
+            <th>→</th>
+            <th>Write/Move</th>
+          </tr>
+        </thead>
+        <tbody id="transBody"></tbody>
+      </table>
+    </div>
+
+    <div class="section-divider">State Diagram</div>
+    <div class="state-graph">
+      <svg class="graph-svg" id="stateSvg" viewBox="0 0 220 120"></svg>
+    </div>
+
+    <div class="section-divider">Execution Log</div>
+    <div class="log-area" id="logArea">
+      <div style="color:var(--text3);font-size:10px">Waiting for execution…</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════
+//  MULTI-TAPE TURING MACHINE ENGINE
+// ══════════════════════════════════════════════════════
+
+const BLANK = '□';
+const TAPE_VIS_SIZE = 14; // cells shown
+
+// ── Machine State ──
+let machine = null;
+let tapes = [[], [], []];
+let heads = [0, 0, 0];
+let currentState = 'q0';
+let stepNum = 0;
+let running = false;
+let runInterval = null;
+let speed = 400;
+let history = []; // for step-back
+let lastTransIdx = -1;
+
+// ── Preset Machines ──
+const PRESETS = {
+
+  anbn: {
+    name: "aⁿbⁿ Language Accepter",
+    tapes: 3,
+    input: "aaabbb",
+    tape1Role: "Input",
+    tape2Role: "a-counter",
+    tape3Role: "b-counter",
+    states: ['q0','q1','q2','q3','qA','qR'],
+    accept: 'qA',
+    reject: 'qR',
+    description: "Uses Tape 2 to count a's, Tape 3 to count b's, then compares.",
+    transitions: [
+      // Phase 1: copy a's to tape2
+      { state:'q0', read:['a',BLANK,BLANK], next:'q0', write:['a','a',BLANK], move:['R','R','S'], desc:"Read a → mark T2" },
+      { state:'q0', read:['b',BLANK,BLANK], next:'q1', write:['b',BLANK,BLANK], move:['S','L','S'], desc:"Switch: rewind T2" },
+      // Phase 1.5: rewind tape2
+      { state:'q1', read:[null,'a',BLANK], next:'q1', write:[null,'a',BLANK], move:['S','L','S'], desc:"Rewind T2" },
+      { state:'q1', read:[null,BLANK,BLANK], next:'q2', write:[null,BLANK,BLANK], move:['S','R','S'], desc:"T2 rewound" },
+      // Phase 2: match b's against a's in tape2
+      { state:'q2', read:['b','a',BLANK], next:'q2', write:['b',BLANK,BLANK], move:['R','R','S'], desc:"b matches a: erase T2" },
+      { state:'q2', read:[BLANK,BLANK,BLANK], next:'qA', write:[BLANK,BLANK,BLANK], move:['S','S','S'], desc:"All matched → ACCEPT" },
+      { state:'q2', read:['b',BLANK,BLANK], next:'qR', write:['b',BLANK,BLANK], move:['S','S','S'], desc:"Extra b → REJECT" },
+      { state:'q2', read:[BLANK,'a',BLANK],  next:'qR', write:[BLANK,'a',BLANK],  move:['S','S','S'], desc:"Extra a → REJECT" },
+    ]
+  },
+
+  palindrome: {
+    name: "Palindrome Checker",
+    tapes: 2,
+    input: "abba",
+    tape1Role: "Input (forward)",
+    tape2Role: "Input (reversed)",
+    tape3Role: "Unused",
+    states: ['q0','q1','q2','qA','qR'],
+    accept: 'qA',
+    reject: 'qR',
+    description: "Copies input to Tape 2, then compares Tape 1 L-to-R with Tape 2 R-to-L.",
+    transitions: [
+      // Phase 1: copy input to tape 2
+      { state:'q0', read:['a',BLANK,BLANK], next:'q0', write:['a','a',BLANK], move:['R','R','S'], desc:"Copy a to T2" },
+      { state:'q0', read:['b',BLANK,BLANK], next:'q0', write:['b','b',BLANK], move:['R','R','S'], desc:"Copy b to T2" },
+      { state:'q0', read:[BLANK,BLANK,BLANK], next:'q1', write:[BLANK,BLANK,BLANK], move:['L','L','S'], desc:"End copy; rewind" },
+      // Phase 1.5: rewind both to start T2 at end
+      { state:'q1', read:['a',null,BLANK], next:'q1', write:['a',null,BLANK], move:['L','S','S'], desc:"Rewind T1" },
+      { state:'q1', read:['b',null,BLANK], next:'q1', write:['b',null,BLANK], move:['L','S','S'], desc:"Rewind T1" },
+      { state:'q1', read:[BLANK,null,BLANK], next:'q2', write:[BLANK,null,BLANK], move:['R','S','S'], desc:"T1 rewound; compare" },
+      // Phase 2: compare T1 forward, T2 backward
+      { state:'q2', read:['a','a',BLANK], next:'q2', write:['a','a',BLANK], move:['R','L','S'], desc:"a=a match" },
+      { state:'q2', read:['b','b',BLANK], next:'q2', write:['b','b',BLANK], move:['R','L','S'], desc:"b=b match" },
+      { state:'q2', read:[BLANK,BLANK,BLANK], next:'qA', write:[BLANK,BLANK,BLANK], move:['S','S','S'], desc:"All matched → ACCEPT" },
+      { state:'q2', read:['a','b',BLANK], next:'qR', write:['a','b',BLANK], move:['S','S','S'], desc:"Mismatch → REJECT" },
+      { state:'q2', read:['b','a',BLANK], next:'qR', write:['b','a',BLANK], move:['S','S','S'], desc:"Mismatch → REJECT" },
+    ]
+  },
+
+  copy: {
+    name: "Tape Copier",
+    tapes: 2,
+    input: "hello",
+    tape1Role: "Source",
+    tape2Role: "Destination",
+    tape3Role: "Unused",
+    states: ['q0','qA'],
+    accept: 'qA',
+    reject: null,
+    description: "Copies the content of Tape 1 to Tape 2 character by character.",
+    transitions: [
+      { state:'q0', read:['a',BLANK,BLANK], next:'q0', write:['a','a',BLANK], move:['R','R','S'], desc:"Copy a" },
+      { state:'q0', read:['b',BLANK,BLANK], next:'q0', write:['b','b',BLANK], move:['R','R','S'], desc:"Copy b" },
+      { state:'q0', read:['h',BLANK,BLANK], next:'q0', write:['h','h',BLANK], move:['R','R','S'], desc:"Copy h" },
+      { state:'q0', read:['e',BLANK,BLANK], next:'q0', write:['e','e',BLANK], move:['R','R','S'], desc:"Copy e" },
+      { state:'q0', read:['l',BLANK,BLANK], next:'q0', write:['l','l',BLANK], move:['R','R','S'], desc:"Copy l" },
+      { state:'q0', read:['o',BLANK,BLANK], next:'q0', write:['o','o',BLANK], move:['R','R','S'], desc:"Copy o" },
+      { state:'q0', read:[BLANK,BLANK,BLANK], next:'qA', write:[BLANK,BLANK,BLANK], move:['S','S','S'], desc:"Done → ACCEPT" },
+    ]
+  },
+
+  reverse: {
+    name: "String Reverser",
+    tapes: 2,
+    input: "abcd",
+    tape1Role: "Input",
+    tape2Role: "Reversed output",
+    tape3Role: "Unused",
+    states: ['q0','q1','qA'],
+    accept: 'qA',
+    reject: null,
+    description: "Reads T1 left-to-right, writes T2 right-to-left, producing the reversed string.",
+    transitions: [
+      { state:'q0', read:['a',BLANK,BLANK], next:'q0', write:['a','a',BLANK], move:['R','R','S'], desc:"Pre-scan length" },
+      { state:'q0', read:['b',BLANK,BLANK], next:'q0', write:['b','b',BLANK], move:['R','R','S'], desc:"Pre-scan length" },
+      { state:'q0', read:['c',BLANK,BLANK], next:'q0', write:['c','c',BLANK], move:['R','R','S'], desc:"Pre-scan length" },
+      { state:'q0', read:['d',BLANK,BLANK], next:'q0', write:['d','d',BLANK], move:['R','R','S'], desc:"Pre-scan length" },
+      { state:'q0', read:[BLANK,BLANK,BLANK], next:'q1', write:[BLANK,BLANK,BLANK], move:['L','L','S'], desc:"End; reverse copy" },
+      { state:'q1', read:['a',null,BLANK], next:'q1', write:['a','a',BLANK], move:['L','R','S'], desc:"Rev copy a" },
+      { state:'q1', read:['b',null,BLANK], next:'q1', write:['b','b',BLANK], move:['L','R','S'], desc:"Rev copy b" },
+      { state:'q1', read:['c',null,BLANK], next:'q1', write:['c','c',BLANK], move:['L','R','S'], desc:"Rev copy c" },
+      { state:'q1', read:['d',null,BLANK], next:'q1', write:['d','d',BLANK], move:['L','R','S'], desc:"Rev copy d" },
+      { state:'q1', read:[BLANK,null,BLANK], next:'qA', write:[BLANK,null,BLANK], move:['S','S','S'], desc:"Done → ACCEPT" },
+    ]
+  },
+
+  unary_add: {
+    name: "Unary Addition",
+    tapes: 3,
+    input: "11+111",
+    tape1Role: "Input (e.g. 11+111)",
+    tape2Role: "First number",
+    tape3Role: "Result",
+    states: ['q0','q1','q2','q3','qA'],
+    accept: 'qA',
+    reject: null,
+    description: "Reads unary numbers separated by + and writes the sum on Tape 3.",
+    transitions: [
+      { state:'q0', read:['1',BLANK,BLANK], next:'q0', write:['1','1',BLANK], move:['R','R','S'], desc:"Copy first num to T2" },
+      { state:'q0', read:['+',BLANK,BLANK], next:'q1', write:['+',BLANK,BLANK], move:['R','S','S'], desc:"Hit +; switch phase" },
+      { state:'q1', read:['1',BLANK,BLANK], next:'q1', write:['1',BLANK,'1'], move:['R','S','R'], desc:"Copy second to T3" },
+      { state:'q1', read:[BLANK,BLANK,BLANK], next:'q2', write:[BLANK,BLANK,BLANK], move:['S','L','S'], desc:"Rewind T2" },
+      { state:'q2', read:[null,'1',BLANK], next:'q2', write:[null,'1',BLANK], move:['S','L','S'], desc:"Rewind T2" },
+      { state:'q2', read:[null,BLANK,BLANK], next:'q3', write:[null,BLANK,BLANK], move:['S','R','S'], desc:"T2 start; append to T3" },
+      { state:'q3', read:[null,'1','1'], next:'q3', write:[null,'1','1'], move:['S','R','S'], desc:"Seek end T3" },
+      { state:'q3', read:[null,'1',BLANK], next:'q3', write:[null,'1','1'], move:['S','R','R'], desc:"Append T2 to T3" },
+      { state:'q3', read:[null,BLANK,null], next:'qA', write:[null,BLANK,null], move:['S','S','S'], desc:"Done → ACCEPT" },
+    ]
+  },
+
+  equal_ab: {
+    name: "Equal a's and b's",
+    tapes: 3,
+    input: "aababb",
+    tape1Role: "Input",
+    tape2Role: "a-counter (tally)",
+    tape3Role: "b-counter (tally)",
+    states: ['q0','q1','q2','q3','qA','qR'],
+    accept: 'qA',
+    reject: 'qR',
+    description: "Uses T2 to count a's and T3 to count b's. Accepts iff count(a) = count(b).",
+    transitions: [
+      { state:'q0', read:['a',BLANK,BLANK], next:'q0', write:['a','1',BLANK], move:['R','R','S'], desc:"Count a on T2" },
+      { state:'q0', read:['b',BLANK,BLANK], next:'q0', write:['b',BLANK,'1'], move:['R','S','R'], desc:"Count b on T3" },
+      { state:'q0', read:[BLANK,BLANK,BLANK], next:'q1', write:[BLANK,BLANK,BLANK], move:['S','L','L'], desc:"Rewind counters" },
+      { state:'q1', read:[null,'1','1'], next:'q1', write:[null,'1','1'], move:['S','L','L'], desc:"Rewind T2 T3" },
+      { state:'q1', read:[null,BLANK,'1'], next:'q1', write:[null,BLANK,'1'], move:['S','S','L'], desc:"Rewind T3" },
+      { state:'q1', read:[null,'1',BLANK], next:'q1', write:[null,'1',BLANK], move:['S','L','S'], desc:"Rewind T2" },
+      { state:'q1', read:[null,BLANK,BLANK], next:'q2', write:[null,BLANK,BLANK], move:['S','R','R'], desc:"Both rewound; compare" },
+      { state:'q2', read:[null,'1','1'], next:'q2', write:[null,'1','1'], move:['S','R','R'], desc:"1=1 match" },
+      { state:'q2', read:[null,BLANK,BLANK], next:'qA', write:[null,BLANK,BLANK], move:['S','S','S'], desc:"Equal → ACCEPT" },
+      { state:'q2', read:[null,'1',BLANK],  next:'qR', write:[null,'1',BLANK],  move:['S','S','S'], desc:"More a's → REJECT" },
+      { state:'q2', read:[null,BLANK,'1'],  next:'qR', write:[null,BLANK,'1'],  move:['S','S','S'], desc:"More b's → REJECT" },
+    ]
+  }
+};
+
+// ── Initialize ──
+let currentPreset = 'anbn';
+loadPreset('anbn');
+
+function loadPreset(name) {
+  currentPreset = name;
+  const p = PRESETS[name];
+  document.getElementById('inputStr').value = p.input;
+
+  // Update tape role labels
+  const roles = document.querySelectorAll('.tape-role');
+  const tapeNames = ['tape1Role','tape2Role','tape3Role'];
+  tapeNames.forEach((r,i) => { if(roles[i]) roles[i].textContent = '— ' + p[r]; });
+
+  reset();
+  buildTransitionTable();
+  buildStateGraph();
+}
+
+function reset() {
+  if(runInterval) { clearInterval(runInterval); runInterval=null; }
+  running = false;
+  document.getElementById('btnRun').textContent = '⏵ Run';
+
+  const p = PRESETS[currentPreset];
+  const inp = document.getElementById('inputStr').value || p.input;
+  currentState = 'q0';
+  stepNum = 0;
+  lastTransIdx = -1;
+  history = [];
+
+  // Initialize tapes
+  tapes = [
+    inp.split('').concat(Array(24).fill(BLANK)),
+    Array(28).fill(BLANK),
+    Array(28).fill(BLANK)
+  ];
+  heads = [0, 0, 0];
+
+  document.getElementById('resultBanner').style.display = 'none';
+  renderAll();
+  updateStateChip();
+  document.getElementById('logArea').innerHTML = '<div style="color:var(--text3);font-size:10px">Waiting for execution…</div>';
+  updateStats();
+  document.getElementById('cmp-steps').textContent = '—';
+  document.getElementById('cmp-single').textContent = '—';
+}
+
+// ── Transition Matching ──
+function matchRead(transRead, tapeReads) {
+  for(let i=0;i<3;i++){
+    if(transRead[i] === null) continue;  // null = wildcard
+    if(transRead[i] !== tapeReads[i]) return false;
+  }
+  return true;
+}
+
+function getTransition(state, reads) {
+  const p = PRESETS[currentPreset];
+  for(let i=0;i<p.transitions.length;i++){
+    const t = p.transitions[i];
+    if(t.state === state && matchRead(t.read, reads)) return {t, idx:i};
+  }
+  return null;
+}
+
+// ── Step ──
+function step() {
+  const p = PRESETS[currentPreset];
+
+  if(currentState === p.accept || currentState === p.reject) return;
+
+  // Save history
+  history.push({
+    tapes: tapes.map(t=>[...t]),
+    heads: [...heads],
+    state: currentState,
+    stepNum
+  });
+
+  const reads = heads.map((h,i) => tapes[i][h] || BLANK);
+  const result = getTransition(currentState, reads);
+  lastTransIdx = -1;
+
+  if(!result) {
+    // No matching transition → reject
+    currentState = p.reject || 'qR';
+    updateStateChip();
+    highlightTrans(-1);
+    showResult(false);
+    return;
+  }
+
+  const {t, idx} = result;
+  lastTransIdx = idx;
+
+  // Apply writes
+  for(let i=0;i<3;i++){
+    if(t.write[i] !== null) {
+      // Expand tape if needed
+      while(heads[i] >= tapes[i].length) tapes[i].push(BLANK);
+      tapes[i][heads[i]] = t.write[i];
+    }
+  }
+
+  // Move heads
+  for(let i=0;i<3;i++){
+    if(t.move[i]==='R') { heads[i]++; while(heads[i]>=tapes[i].length) tapes[i].push(BLANK); }
+    else if(t.move[i]==='L') { heads[i] = Math.max(0, heads[i]-1); }
+  }
+
+  currentState = t.next;
+  stepNum++;
+
+  renderAll();
+  updateStateChip();
+  highlightTrans(idx);
+  addLog(reads, t);
+  updateStats();
+
+  if(currentState === p.accept) { setTimeout(()=>showResult(true),200); }
+  else if(currentState === p.reject) { setTimeout(()=>showResult(false),200); }
+}
+
+function stepBack() {
+  if(history.length === 0) return;
+  const h = history.pop();
+  tapes = h.tapes;
+  heads = h.heads;
+  currentState = h.state;
+  stepNum = h.stepNum;
+  document.getElementById('resultBanner').style.display = 'none';
+  renderAll();
+  updateStateChip();
+  updateStats();
+}
+
+// ── Run / Stop ──
+function toggleRun() {
+  if(running) {
+    clearInterval(runInterval); runInterval=null;
+    running=false;
+    document.getElementById('btnRun').textContent = '⏵ Run';
+  } else {
+    const p = PRESETS[currentPreset];
+    if(currentState===p.accept||currentState===p.reject) return;
+    running=true;
+    document.getElementById('btnRun').textContent = '⏸ Pause';
+    runInterval = setInterval(()=>{
+      step();
+      const q = PRESETS[currentPreset];
+      if(currentState===q.accept||currentState===q.reject){
+        clearInterval(runInterval); runInterval=null;
+        running=false;
+        document.getElementById('btnRun').textContent = '⏵ Run';
+      }
+    }, 1050 - speed);
+  }
+}
+
+function updateSpeed() {
+  speed = parseInt(document.getElementById('speedSlider').value);
+  const labels = ['slow','slow','med','med','fast','fast','fast'];
+  document.getElementById('speedLabel').textContent = speed > 700 ? 'fast' : speed > 350 ? 'med' : 'slow';
+  if(running) {
+    clearInterval(runInterval);
+    runInterval = setInterval(()=>{
+      step();
+      const q = PRESETS[currentPreset];
+      if(currentState===q.accept||currentState===q.reject){
+        clearInterval(runInterval); runInterval=null;
+        running=false;
+        document.getElementById('btnRun').textContent='⏵ Run';
+      }
+    }, 1050 - speed);
+  }
+}
+
+// ── Render Tapes ──
+function renderAll() {
+  renderTape(0, 'tape1Track', 'head1');
+  renderTape(1, 'tape2Track', 'head2');
+  renderTape(2, 'tape3Track', 'head3');
+  document.getElementById('h1pos').textContent = heads[0];
+  document.getElementById('h2pos').textContent = heads[1];
+  document.getElementById('h3pos').textContent = heads[2];
+  document.getElementById('stepCount').textContent = stepNum;
+}
+
+function renderTape(tapeIdx, trackId, headId) {
+  const track = document.getElementById(trackId);
+  const head = document.getElementById(headId);
+  const tape = tapes[tapeIdx];
+  const pos  = heads[tapeIdx];
+
+  const start = Math.max(0, pos - 5);
+  const end   = start + TAPE_VIS_SIZE;
+
+  let html = '';
+  for(let i=start; i<end && i<tape.length+4; i++){
+    const ch = (i < tape.length ? tape[i] : BLANK) || BLANK;
+    const isHead = (i === pos);
+    const isBl   = (ch === BLANK);
+    const isWr   = (ch !== BLANK && i >= (document.getElementById('inputStr').value.length || 0) + 1 && tapeIdx > 0);
+    let cls = 'tape-cell';
+    if(isHead) cls += ' head-cell';
+    if(isBl) cls += ' blank';
+    else if(isWr) cls += ' written';
+    html += `<div class="${cls}" style="${isHead ? '--head-color:var(--tape${tapeIdx+1})' : ''}">${ch}<span class="cell-index">${i}</span></div>`;
+  }
+  track.innerHTML = html;
+
+  // Position head arrow over pos column
+  const colW = 52;
+  const relPos = pos - start;
+  const px = relPos * colW + colW/2 - 10;
+  head.style.left = px + 'px';
+}
+
+// ── Transition Table ──
+function buildTransitionTable() {
+  const p = PRESETS[currentPreset];
+  const tbody = document.getElementById('transBody');
+  tbody.innerHTML = p.transitions.map((t,i) => {
+    const readStr = t.read.map(r => r===null ? '*' : r===BLANK ? '□' : r).join(',');
+    const writeStr = t.write.map(w => w===null ? '-' : w===BLANK ? '□' : w).join(',');
+    const moveStr = t.move.join('');
+    return `<tr id="trow${i}">
+      <td><span class="state-tag" style="background:rgba(124,106,255,0.12);color:var(--accent)">${t.state}</span></td>
+      <td style="color:var(--teal)">[${readStr}]</td>
+      <td><span class="state-tag" style="background:rgba(45,212,191,0.1);color:var(--teal)">${t.next}</span></td>
+      <td style="font-size:9px">[${writeStr}] ${moveStr}</td>
+    </tr>`;
+  }).join('');
+}
+
+function highlightTrans(idx) {
+  document.querySelectorAll('#transBody tr').forEach(r=>r.classList.remove('active'));
+  if(idx>=0) {
+    const row = document.getElementById('trow'+idx);
+    if(row) { row.classList.add('active'); row.scrollIntoView({block:'nearest',behavior:'smooth'}); }
+  }
+}
+
+// ── State Graph ──
+function buildStateGraph() {
+  const p = PRESETS[currentPreset];
+  const svg = document.getElementById('stateSvg');
+  const states = p.states;
+  const n = states.length;
+
+  // Layout in a line or circle
+  const positions = {};
+  const cx = 110, cy = 60, r = 50;
+  states.forEach((s,i)=>{
+    const angle = (i / n) * 2 * Math.PI - Math.PI/2;
+    positions[s] = { x: cx + r*Math.cos(angle), y: cy + r*Math.sin(angle) };
+  });
+
+  let svgContent = `<defs>
+    <marker id="gar" viewBox="0 0 8 8" refX="6" refY="4" markerWidth="5" markerHeight="5" orient="auto">
+      <path d="M1 1L7 4L1 7" fill="none" stroke="#5a5a72" stroke-width="1.2"/>
+    </marker></defs>`;
+
+  // Draw edges (simplified)
+  const drawn = new Set();
+  p.transitions.forEach(t=>{
+    const key = t.state+'→'+t.next;
+    if(drawn.has(key)) return;
+    drawn.add(key);
+    const a = positions[t.state], b = positions[t.next];
+    if(!a||!b) return;
+    if(t.state===t.next){
+      svgContent += `<circle cx="${a.x}" cy="${a.y-12}" r="8" fill="none" stroke="#3a3a50" stroke-width="0.8" marker-end="url(#gar)"/>`;
+    } else {
+      svgContent += `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="#3a3a50" stroke-width="0.8" marker-end="url(#gar)"/>`;
+    }
+  });
+
+  // Draw state nodes
+  states.forEach(s=>{
+    const pos = positions[s];
+    if(!pos) return;
+    const isAccept = s===p.accept;
+    const isReject = s===p.reject;
+    const isCurrent = s===currentState;
+    const fillCol = isCurrent ? 'rgba(124,106,255,0.3)' : isAccept ? 'rgba(74,222,128,0.12)' : isReject ? 'rgba(248,113,113,0.12)' : 'rgba(34,34,47,0.8)';
+    const strokeCol = isCurrent ? '#7c6aff' : isAccept ? '#4ade80' : isReject ? '#f87171' : '#3a3a50';
+    svgContent += `<circle cx="${pos.x}" cy="${pos.y}" r="${isAccept||isReject?13:11}" fill="${fillCol}" stroke="${strokeCol}" stroke-width="${isCurrent?2:1}"/>`;
+    if(isAccept) svgContent += `<circle cx="${pos.x}" cy="${pos.y}" r="10" fill="none" stroke="${strokeCol}" stroke-width="0.7"/>`;
+    svgContent += `<text x="${pos.x}" y="${pos.y}" text-anchor="middle" dominant-baseline="central" font-size="7" font-family="'JetBrains Mono',monospace" fill="${isCurrent?'#a594ff':isAccept?'#4ade80':isReject?'#f87171':'#9090a8'}">${s}</text>`;
+  });
+
+  svg.innerHTML = svgContent;
+  svg.setAttribute('viewBox', '0 0 220 120');
+}
+
+// ── State Chip ──
+function updateStateChip() {
+  const p = PRESETS[currentPreset];
+  const chip = document.getElementById('stateChip');
+  const label = document.getElementById('stateLabel');
+  label.textContent = currentState;
+  chip.className = 'state-chip';
+  if(currentState===p.accept) chip.classList.add('accepting');
+  else if(currentState===p.reject) chip.classList.add('rejecting');
+  else chip.classList.add('running');
+  buildStateGraph(); // refresh graph
+}
+
+// ── Log ──
+function addLog(reads, t) {
+  const log = document.getElementById('logArea');
+  const readStr = reads.map(r=>r===BLANK?'□':r).join(',');
+  const entry = document.createElement('div');
+  entry.className='log-entry';
+  entry.innerHTML = `<span class="log-step">#${stepNum}</span>
+    <span class="log-state">${t.state}</span>
+    <span class="log-arrow">→</span>
+    <span class="log-action">[${readStr}] ${t.desc}</span>`;
+  log.appendChild(entry);
+  log.scrollTop = log.scrollHeight;
+  if(log.children.length > 200) log.removeChild(log.children[0]);
+}
+
+// ── Result ──
+function showResult(accept) {
+  const banner = document.getElementById('resultBanner');
+  const title = document.getElementById('resultTitle');
+  const sub = document.getElementById('resultSub');
+  banner.className = 'result-banner ' + (accept ? 'accept' : 'reject');
+  title.textContent = accept ? '✓ ACCEPTED' : '✗ REJECTED';
+  const p = PRESETS[currentPreset];
+  sub.textContent = `"${document.getElementById('inputStr').value}" — ${p.name} — ${stepNum} steps`;
+  banner.style.display = 'block';
+
+  const log = document.getElementById('logArea');
+  const entry = document.createElement('div');
+  entry.className = accept ? 'log-accept' : 'log-reject';
+  entry.textContent = accept ? `✓ ACCEPTED in ${stepNum} steps` : `✗ REJECTED in ${stepNum} steps`;
+  log.appendChild(entry);
+  log.scrollTop = log.scrollHeight;
+
+  document.getElementById('cmp-steps').textContent = stepNum;
+  const n = document.getElementById('inputStr').value.length;
+  document.getElementById('cmp-single').textContent = '~' + (n*n) + ' (est.)';
+
+  setTimeout(()=>{ banner.style.display='none'; }, 3500);
+}
+
+// ── Stats ──
+function updateStats() {
+  document.getElementById('stepCount').textContent = stepNum;
+  document.getElementById('h1pos').textContent = heads[0];
+  document.getElementById('h2pos').textContent = heads[1];
+  document.getElementById('h3pos').textContent = heads[2];
+}
+
+// ── Init ──
+buildTransitionTable();
+renderAll();
+</script>
+</body>
+</html>
